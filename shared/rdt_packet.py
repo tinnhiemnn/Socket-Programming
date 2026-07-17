@@ -1,23 +1,19 @@
 import struct
 
 class RDTPacket:
-    HEADER_FORMAT = '!IIHHH'
-    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-    def __init__(self, seq_num, ack_num, flags, data=b''):
+    def __init__(self, seq_num, flags, data=b''):
         self.seq_num = seq_num
-        self.ack_num = ack_num
         self.flags = flags
         self.payload = data
         self.payload_len = len(data)
         self.checksum = 0
-    
-    @staticmethod       # giong static trong class C++
+           
     def to_bytes(self) -> bytes:
         self.checksum = self.calculate_checksum(self.payload)
-        header = struct.pack(self.HEADER_FORMAT, self.seq_num, self.ack_num, self.flags, self.payload_len, self.checksum)
+        header = struct.pack('!IHHH', self.seq_num, self.flags, self.payload_len, self.checksum)
         return header + self.payload
     
-    @staticmethod
+    @staticmethod   # giong static trong class C++
     def calculate_checksum(data: bytes) -> int:
         if len(data) % 2 == 1:
             data += b'\x00'    # cong them byte cuoi cung neu le
@@ -30,11 +26,11 @@ class RDTPacket:
     
     @staticmethod
     def from_bytes(packet_bytes: bytes):
-        header_size = 14         # 4 byte Seq 4 2 bytes Ack + 2 bytes Flags + 2 bytes Payload len + 2 bytes Checksum
+        header_size = 10         # 4 byte Seq + 2 bytes Flags + 2 bytes Payload len + 2 bytes Checksum
         if len(packet_bytes) < header_size:
             return None
             
-        seq_num, ack_num, flags, payload_len, checksum = struct.unpack('!IIHHH', packet_bytes[:header_size])
+        seq_num, flags, payload_len, checksum = struct.unpack('!IHHH', packet_bytes[:header_size])
         payload = packet_bytes[header_size:header_size + payload_len]
         
         calculated = RDTPacket.calculate_checksum(payload)
@@ -42,6 +38,6 @@ class RDTPacket:
             print("[!] CẢNH BÁO: Gói tin bị lỗi bit (Checksum không khớp)!")
             return None 
             
-        packet = RDTPacket(seq_num, ack_num, flags, payload)
+        packet = RDTPacket(seq_num, flags, payload)
         packet.checksum = checksum
         return packet
