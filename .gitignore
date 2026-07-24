@@ -1,0 +1,4 @@
+client/__pycache__/
+server/__pycache__/
+shared/__pycache__/
+test.py
