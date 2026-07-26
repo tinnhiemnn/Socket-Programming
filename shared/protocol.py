@@ -1,0 +1,6 @@
+REPLY_220 = "220 Service ready. \r\n"
+REPLY_221 = "221 Goodbye. \r\n"
+REPLY_230 = "230 User logged in, proceed. \r\n"
+REPLY_331 = "331 User name okay, need password. \r\n"
+REPLY_500 = "500 Syntax error, command unrecognized. \r\n"
+REPLY_530 = "530 Not logged in. \r\n"
