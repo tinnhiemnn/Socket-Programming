@@ -12,7 +12,7 @@ class ClientHandler:
         self.username = None
         self.is_running = True
 
-    def send_respone(self, respone_str): 
+    def send_response(self, respone_str): 
         """Send an FTP response code to the client."""
         try: 
             self.client_socket.sendall(respone_str.encode('utf-8'))
@@ -20,7 +20,7 @@ class ClientHandler:
             print(f"[!] Error sending data to {self.client_address}: {e}")
 
     def run(self):
-        self.send_respone(REPLY_220)
+        self.send_response(REPLY_220)
 
         while self.is_running:
             try:
@@ -29,7 +29,7 @@ class ClientHandler:
                     break
 
                 data = data.strip()
-                parts = data.split('', 1)
+                parts = data.split(' ', 1)
                 cmd = parts[0].upper()
                 args = parts[1] if len(parts) > 1 else ""
 

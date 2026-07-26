@@ -1,6 +1,6 @@
 import socket
 import threading
-from server_core import ClientHandler
+from server.server_core import ClientHandler
 
 HOST = '127.0.0.1'
 PORT = 2121

@@ -1,4 +1,4 @@
-from client_core import Client
+from client.client_core import Client
 
 def main():
     SERVER_IP = "127.0.0.1"
