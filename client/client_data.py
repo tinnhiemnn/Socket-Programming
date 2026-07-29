@@ -1,3 +1,4 @@
+import os
 import socket
 from shared.rdt_packet import RDTPacket, FLAG_DATA, FLAG_ACK
 
@@ -94,3 +95,33 @@ class RDTDataChannel:
                 break
 
         return bytes(received_data)
+
+    @staticmethod
+    def read_file_payload(filepath: str, transfer_type: str = 'I') -> bytes:
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File không tồn tại: {filepath}")
+
+        if transfer_type.upper() == 'A':
+            # TYPE A: Đọc dạng Text với mã hóa UTF-8, sau đó encode thành bytes
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                text_content = f.read()
+                return text_content.encode('utf-8')
+        else:
+            # TYPE I: Đọc dạng Binary thô (Raw bytes)
+            with open(filepath, 'rb') as f:
+                return f.read()
+
+    @staticmethod
+    def write_file_payload(filepath: str, raw_bytes: bytes, transfer_type: str = 'I'):
+        # Tạo thư mục chứa file nếu chưa tồn tại
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        if transfer_type.upper() == 'A':
+            # TYPE A: Decode mảng bytes thành chuỗi text rồi ghi ở chế độ 'w'
+            text_content = raw_bytes.decode('utf-8', errors='replace')
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(text_content)
+        else:
+            # TYPE I: Ghi trực tiếp mảng bytes thô ở chế độ 'wb'
+            with open(filepath, 'wb') as f:
+                f.write(raw_bytes)
