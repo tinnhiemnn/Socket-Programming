@@ -4,6 +4,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.protocol import *
 from server.server_data import ServerDataHandler
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage'))
 
 class ClientHandler:
     def __init__(self, client_socket, client_address):
@@ -12,6 +13,7 @@ class ClientHandler:
         self.is_authenticated = False
         self.username = None
         self.is_running = True
+        self.current_dir = SERVER_ROOT
 
         self.transfer_type = 'I' 
         self.data_handler = ServerDataHandler()
@@ -54,6 +56,7 @@ class ClientHandler:
         if cmd == "USER":
             self.username = args
             self.send_response(REPLY_331)
+            return
 
         elif cmd == "PASS":
             if self.username:
@@ -61,6 +64,7 @@ class ClientHandler:
                 self.send_response(REPLY_230)
             else:
                 self.send_response(REPLY_530)
+            return
 
         elif cmd == "QUIT":
             self.send_response(REPLY_221)
@@ -107,9 +111,75 @@ class ClientHandler:
             # còn thiếu nếu ở PORT mode
             
             self.send_response("REPLY_226.\r\n")
+            return
+
+        if not self.is_authenticated:
+            self.send_response(REPLY_530)
+            return
+
+        if cmd == "PWD": 
+            virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")
+            if virtual_path == "":
+                virtual_path = "/"
+
+            self.send_response(REPLY_257.format(virtual_path))
+
+        elif cmd == "CWD":
+            # Xử lý đặc biệt nếu arg là ".." để lùi về thư mục cha (CDUP logic)
+            if args == "..":
+                new_path = os.path.abspath(os.path.join(self.current_dir, ".."))
+            else:
+                new_path = os.path.abspath(os.path.join(self.current_dir, args))
+            
+            if not new_path.startswith(SERVER_ROOT):
+                self.send_response(REPLY_550) 
+            elif os.path.isdir(new_path):
+                self.current_dir = new_path
+                self.send_response(REPLY_250) 
+            else:
+                self.send_response(REPLY_550) 
+
+        elif cmd == "CDUP":
+            new_path = os.path.abspath(os.path.join(self.current_dir, args))
+
+            if not new_path.startswith(SERVER_ROOT):
+                self.send_response(REPLY_550)
+
+            elif os.path.isdir(new_path):
+                self.current_dir = new_path
+                self.send_response(REPLY_250)
+
+            else:
+                self.send_response(REPLY_550)
+                
+        elif cmd == "MKD":
+            new_path = os.path.abspath(os.path.join(self.current_dir, args))
+            
+            if not new_path.startswith(SERVER_ROOT):
+                self.send_response(REPLY_550)
+
+            elif not os.path.exists(new_path):
+                try:
+                    os.makedirs(new_path)
+                    self.send_response(REPLY_250)
+                except Exception as e:
+                    self.send_response(REPLY_550)
+            else:
+                self.send_response(REPLY_550)
+
+        elif cmd == "RMD":
+            target_path = os.path.abspath(os.path.join(self.current_dir, args))
+
+            if not target_path.startswith(SERVER_ROOT):
+                self.send_response(REPLY_550)
+            elif os.path.isdir(target_path):
+                try:
+                    os.rmdir(target_path)
+                    self.send_response(REPLY_250)
+                except Exception as e:
+                    self.send_response(REPLY_550)
+            else:
+                self.send_response(REPLY_550)
 
         else: 
-            if not self.is_authenticated:
-                self.send_response(REPLY_530)
-            else:
-                self.send_response(REPLY_500)
+            self.send_response(REPLY_502)

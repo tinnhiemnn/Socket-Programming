@@ -1,6 +1,11 @@
+REPLY_200 = "200 Command Ok. \r\n"
 REPLY_220 = "220 Service ready. \r\n"
 REPLY_221 = "221 Goodbye. \r\n"
 REPLY_230 = "230 User logged in, proceed. \r\n"
+REPLY_250 = "250 Request file action Ok. \r\n"
+REPLY_257 = '257 "{}" is the current directory. \r\n'
 REPLY_331 = "331 User name okay, need password. \r\n"
 REPLY_500 = "500 Syntax error, command unrecognized. \r\n"
+REPLY_502 = "502 Bad gateway. \r\n"
 REPLY_530 = "530 Not logged in. \r\n"
+REPLY_550 = "550 File or directory unavailable. \r\n"
