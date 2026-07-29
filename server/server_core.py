@@ -69,20 +69,25 @@ class ClientHandler:
         elif cmd == "QUIT":
             self.send_response(REPLY_221)
             self.is_running = False
+            return
 
-        elif cmd == "TYPE":
+        if not self.is_authenticated:
+            self.send_response(REPLY_530)
+            return
+
+        if cmd == "TYPE":
             if args.upper() in ['A', 'I']:
                 self.transfer_type = args.upper()
-                self.send_response("REPLY_200\r\n")
+                self.send_response(REPLY_200)
             else:
-                self.send_response("REPLY 504\r\n")
+                self.send_response(REPLY_500)
 
         elif cmd == "RETR": 
             filepath = os.path.join("storage/server_root", args)
             if not os.path.exists(filepath):
-                self.send_response("REPLY 550\r\n")
+                self.send_response(REPLY_550)
             else:
-                self.send_response("REPLY 150.\r\n")
+                self.send_response(REPLY_150)
                 
                 # 2. Nếu ở PASV Mode, nhận gói UDP mồi từ Client để lấy client_udp_addr
                 if self.pasv_udp_socket:
@@ -97,11 +102,11 @@ class ClientHandler:
                 # còn thiếu nếu ở PORT Mode
                 
                 # 4. Báo 226 Hoàn tất qua TCP
-                self.send_response("REPLY_226.\r\n")
+                self.send_response(REPLY_226)
 
         elif cmd == "STOR": 
             save_filepath = os.path.join("storage/server_root", args)
-            self.send_response("REPLY_150.\r\n")
+            self.send_response(REPLY_150)
             
             if self.pasv_udp_socket:
                 self.data_handler.handle_upload(self.pasv_udp_socket, save_filepath, self.transfer_type)
@@ -110,14 +115,10 @@ class ClientHandler:
 
             # còn thiếu nếu ở PORT mode
             
-            self.send_response("REPLY_226.\r\n")
+            self.send_response(REPLY_226)
             return
 
-        if not self.is_authenticated:
-            self.send_response(REPLY_530)
-            return
-
-        if cmd == "PWD": 
+        elif cmd == "PWD": 
             virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")
             if virtual_path == "":
                 virtual_path = "/"
