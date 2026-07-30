@@ -70,6 +70,15 @@ def main():
                 print("[*] Closing client app. Goodbye!")
                 break
 
+            elif cmd == "PASV":
+                client.enable_passive_mode()
+                print("[*] Switched to PASSIVE Mode.")
+
+            elif cmd == "PORT":
+                res = client.enable_active_mode()
+                print(f"Server: {res.strip()}")
+                print("[*] Switched to ACTIVE Mode.")
+
             else:
                 response = client.send_command(user_input)
                 print(f"Server: {response.strip()}")

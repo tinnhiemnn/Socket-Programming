@@ -12,7 +12,8 @@ class RDTPacket:
         self.checksum = 0
            
     def to_bytes(self) -> bytes:
-        self.checksum = self.calculate_checksum(self.payload)
+        header = struct.pack('!IHHH', self.seq_num, self.flags, self.payload_len, 0)
+        self.checksum = self.calculate_checksum(header + self.payload)
         header = struct.pack('!IHHH', self.seq_num, self.flags, self.payload_len, self.checksum)
         return header + self.payload
     
@@ -33,13 +34,12 @@ class RDTPacket:
         if len(packet_bytes) < header_size:
             return None
             
-        seq_num, flags, payload_len, checksum = struct.unpack('!IHHH', packet_bytes[:header_size])
-        payload = packet_bytes[header_size:header_size + payload_len]
-        
-        calculated = RDTPacket.calculate_checksum(payload)
-        if calculated != checksum:
+        if RDTPacket.calculate_checksum(packet_bytes) != 0:
             print("[!] WARNING: Packet has a bit error (Checksum does not match)!")
             return None 
+        
+        seq_num, flags, payload_len, checksum = struct.unpack('!IHHH', packet_bytes[:header_size])
+        payload = packet_bytes[header_size:header_size + payload_len]
             
         packet = RDTPacket(seq_num, flags, payload)
         packet.checksum = checksum

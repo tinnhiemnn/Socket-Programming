@@ -15,6 +15,8 @@ class Client:
         self.control_socket = None
         self.rdt_data_channel = RDTDataChannel()
         self.transfer_type = 'I'
+        self.data_mode = 'PASV'
+        self.active_udp_socket = None
 
     def connect_control_channel(self):
         try:
@@ -45,8 +47,7 @@ class Client:
             self.transfer_type = type_str.upper()
         return res
 
-    def pasv(self):
-        """Bật Passive Mode và trả về IP + Port UDP của Server"""
+    def enable_passive_mode(self):
         res = self.send_command("PASV")
         if "227" in res:
             # Bóc tách chuỗi (127,0,0,1,p1,p2)
@@ -55,52 +56,112 @@ class Client:
             parts = res[start:end].split(",")
             ip = ".".join(parts[:4])
             port = int(parts[4]) * 256 + int(parts[5])
+            self.data_mode = 'PASV'
             return (ip, port)
-        raise Exception("Không thể bật Passive Mode!")
+        raise Exception("Failed to enter Passive Mode.")
 
-    def download_file(self, filename, save_local_path): # CHƯA CÓ CHẾ ĐỘ ACTIVE
-        # 1. Bật Passive Mode lấy Port UDP Server
-        server_udp_addr = self.pasv()
-        
-        # 2. Tạo Socket UDP Client
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        
-        # 3. Gửi lệnh RETR qua TCP
-        res_150 = self.send_command(f"RETR {filename}")
-        if "150" not in res_150:
-            udp_sock.close()
-            return res_150
-            
-        # 4. Gửi 1 gói tin mồi (Ping) sang UDP Server để Server biết IP/Port Client
-        udp_sock.sendto(b'PING', server_udp_addr)
-        
-        # 5. Client đóng vai UDP Receiver hứng dữ liệu RDT
-        raw_bytes = self.rdt_data_channel.receive_data_rdt(udp_sock)
-        self.rdt_data_channel.write_file_payload(save_local_path, raw_bytes, self.transfer_type)
-        udp_sock.close()
-        
-        # 6. Đón phản hồi 226 Transfer complete qua TCP[cite: 2]
-        res_226 = self.control_socket.recv(1024).decode('utf-8')
-        return res_226
+    def get_local_ip(self):
+        try:
+            temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            temp_sock.connect((self.server_ip, self.server_port))
+            local_ip = temp_sock.getsockname()[0]
+            temp_sock.close()
+            return local_ip
+        except Exception:
+            return "127.0.0.1"
 
-    def upload_file(self, local_filepath, remote_filename): # CHƯA CÓ CHẾ ĐỘ ACTIVE
-        # 1. Đọc file cục bộ
-        payload_bytes = self.rdt_data_channel.read_file_payload(local_filepath, self.transfer_type)
+    def enable_active_mode(self):
+        client_ip = self.get_local_ip()
         
-        # 2. Bật Passive Mode lấy Port UDP Server
-        server_udp_addr = self.pasv()
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if self.active_udp_socket:
+            self.active_udp_socket.close()
+        self.active_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.active_udp_socket.bind((client_ip, 0))  
         
-        # 3. Gửi lệnh STOR qua TCP
-        res_150 = self.send_command(f"STOR {remote_filename}")
-        if "150" not in res_150:
-            udp_sock.close()
-            return res_150
-            
-        # 4. Client đóng vai UDP Sender đẩy dữ liệu RDT
-        self.rdt_data_channel.send_data_rdt(udp_sock, server_udp_addr, payload_bytes)
-        udp_sock.close()
+        client_port = self.active_udp_socket.getsockname()[1]
         
-        # 5. Đón phản hồi 226 Transfer complete qua TCP[cite: 2]
-        res_226 = self.control_socket.recv(1024).decode('utf-8')
-        return res_226
+        ip_parts = client_ip.split('.')
+        p1 = client_port // 256
+        p2 = client_port % 256
+        
+        port_cmd = f"PORT {ip_parts[0]},{ip_parts[1]},{ip_parts[2]},{ip_parts[3]},{p1},{p2}"
+        response = self.send_command(port_cmd)
+        
+        if "200" in response:
+            self.data_mode = 'PORT'
+        return response
+
+    def download_file(self, filename, save_local_path): 
+        udp_sock = None
+        target_addr = None
+
+        try:
+            if self.data_mode == 'PASV':
+                target_addr = self.enable_passive_mode()
+                udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            else: 
+                if not self.active_udp_socket:
+                    self.enable_active_mode()
+                udp_sock = self.active_udp_socket
+
+            res_150 = self.send_command(f"RETR {filename}")
+            if "150" not in res_150:
+                if self.data_mode == 'PASV' and udp_sock:
+                    udp_sock.close()
+                return res_150
+
+            if self.data_mode == 'PASV':
+                udp_sock.sendto(b'PING', target_addr)
+                raw_bytes = self.rdt_channel.receive_data_rdt(udp_sock)
+                udp_sock.close()
+            else:
+                raw_bytes = self.rdt_channel.receive_data_rdt(udp_sock)
+                self.active_udp_socket = None 
+
+            self.rdt_channel.write_file_payload(save_local_path, raw_bytes, self.transfer_type)
+            res_226 = self.control_socket.recv(1024).decode('utf-8')
+            return res_226
+
+        except Exception as e:
+            if self.data_mode == 'PASV' and udp_sock:
+                udp_sock.close()
+            return f"[!] Download failed: {e}"
+        
+    def upload_file(self, local_filepath, remote_filename): 
+        udp_sock = None
+        target_addr = None
+
+        try:
+            payload_bytes = self.rdt_channel.read_file_payload(local_filepath, self.transfer_type)
+
+            if self.data_mode == 'PASV':
+                target_addr = self.enable_passive_mode()
+                udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            else:
+                if not self.active_udp_socket:
+                    self.enable_active_mode()
+                udp_sock = self.active_udp_socket
+
+            res_150 = self.send_command(f"STOR {remote_filename}")
+            if "150" not in res_150:
+                if self.data_mode == 'PASV' and udp_sock:
+                    udp_sock.close()
+                return res_150
+
+            if self.data_mode == 'PASV':
+                self.rdt_channel.send_data_rdt(udp_sock, target_addr, payload_bytes)
+                udp_sock.close()
+            else:
+                udp_sock.settimeout(3.0)
+                _, server_udp_addr = udp_sock.recvfrom(1024)
+                self.rdt_channel.send_data_rdt(udp_sock, server_udp_addr, payload_bytes)
+                udp_sock.close()
+                self.active_udp_socket = None 
+
+            res_226 = self.control_socket.recv(1024).decode('utf-8')
+            return res_226
+
+        except Exception as e:
+            if self.data_mode == 'PASV' and udp_sock:
+                udp_sock.close()
+            return f"[!] Upload failed: {e}"
