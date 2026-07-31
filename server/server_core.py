@@ -15,6 +15,7 @@ class ClientHandler:
         self.is_running = True
         self.current_dir = SERVER_ROOT
 
+        self.data_mode = "PASV"
         self.transfer_type = 'I' 
         self.data_handler = ServerDataHandler()
         self.pasv_udp_socket = None
@@ -82,40 +83,149 @@ class ClientHandler:
             else:
                 self.send_response(REPLY_500)
 
-        elif cmd == "RETR": 
-            filepath = os.path.join("storage/server_root", args)
-            if not os.path.exists(filepath):
-                self.send_response(REPLY_550)
-            else:
-                self.send_response(REPLY_150)
-                
-                # 2. Nếu ở PASV Mode, nhận gói UDP mồi từ Client để lấy client_udp_addr
+        elif cmd == "PASV":
+            self.data_mode = "PASV"
+            try:
                 if self.pasv_udp_socket:
+                    self.pasv_udp_socket.close()
+                
+                self.pasv_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.pasv_udp_socket.bind(('0.0.0.0', 0))
+                
+                _, assigned_port = self.pasv_udp_socket.getsockname()
+                
+                server_ip = self.client_socket.getsockname()[0]
+                ip_parts = server_ip.replace('.', ',')
+                p1 = assigned_port // 256
+                p2 = assigned_port % 256
+                
+                # Gửi chuỗi 227 chứa IP và Port về cho Client
+                self.send_response(REPLY_227.format(ip_parts, p1, p2))
+            except Exception as e:
+                self.send_response(REPLY_425)
+
+        elif cmd == "PORT":
+            self.data_mode = "PORT"
+            try:
+                parts = args.split(',')
+                ip = '.'.join(parts[:4])
+                port = int(parts[4]) * 256 + int(parts[5])
+                
+                # Lưu lại IP và Port của Client để dùng cho lệnh RETR/STOR
+                self.client_udp_addr = (ip, port)
+                self.send_response(REPLY_200)
+            except:
+                self.send_response(REPLY_501)
+
+        elif cmd == "RETR": 
+            filepath = os.path.abspath(os.path.join(self.current_dir, args))
+            
+            if not filepath.startswith(SERVER_ROOT) or not os.path.isfile(filepath):
+                self.send_response(REPLY_550) # Báo lỗi nếu đòi lấy file ngoài luồng hoặc file không tồn tại
+                return
+            
+            self.send_response(REPLY_150) 
+            
+            # 2. BAO BỌC TRONG TRY-EXCEPT để chống sập server
+            try:
+                if self.data_mode == "PASV" and self.pasv_udp_socket:
                     self.pasv_udp_socket.settimeout(3.0)
                     _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
                     
-                    # 3. Server đóng vai UDP Sender đẩy file qua RDT
                     self.data_handler.handle_download(self.pasv_udp_socket, client_udp_addr, filepath, self.transfer_type)
+                    
                     self.pasv_udp_socket.close()
                     self.pasv_udp_socket = None
+                    self.send_response(REPLY_226) 
 
-                # còn thiếu nếu ở PORT Mode
+                elif self.data_mode == "PORT" and getattr(self, 'client_udp_addr', None):
+                    temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    self.data_handler.handle_download(temp_socket, self.client_udp_addr, filepath, self.transfer_type)
+                    
+                    temp_socket.close()
+                    self.send_response(REPLY_226) 
                 
-                # 4. Báo 226 Hoàn tất qua TCP
-                self.send_response(REPLY_226)
+                else:
+                    self.send_response(REPLY_425) 
+
+            except socket.timeout:
+                print(f"[!] RETR Timeout waiting for client.")
+                self.send_response(REPLY_426)
+            except Exception as e:
+                print(f"[!] RETR Error: {e}")
+                self.send_response(REPLY_426)
 
         elif cmd == "STOR": 
-            save_filepath = os.path.join("storage/server_root", args)
+            save_filepath = os.path.abspath(os.path.join(self.current_dir, args))
+            
+            if not save_filepath.startswith(SERVER_ROOT):
+                self.send_response(REPLY_550) 
+                return
+            
+            self.send_response(REPLY_150) 
+            
+            # 2. BAO BỌC TRONG TRY-EXCEPT để bắt lỗi
+            try:
+                if self.data_mode == "PASV" and self.pasv_udp_socket:
+                    self.pasv_udp_socket.settimeout(5.0) 
+                    
+                    self.data_handler.handle_upload(self.pasv_udp_socket, save_filepath, self.transfer_type)
+                    
+                    self.pasv_udp_socket.close()
+                    self.pasv_udp_socket = None
+                    self.send_response(REPLY_226) 
+
+                elif self.data_mode == "PORT" and getattr(self, 'client_udp_addr', None):
+                    # Chế độ PORT: Tự mở socket mới, bind đại 1 port rồi lắng nghe
+                    temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    temp_socket.bind(('0.0.0.0', 0))
+                    
+                    self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type)
+                    
+                    temp_socket.close()
+                    self.send_response(REPLY_226) 
+                
+                else:
+                    self.send_response(REPLY_425) 
+                    
+            except socket.timeout:
+                print(f"[!] STOR Timeout waiting for client data.")
+                self.send_response(REPLY_426) 
+            except Exception as e:
+                print(f"[!] STOR Error: {e}")
+                self.send_response(REPLY_426)
+
+        elif cmd == "LIST":
             self.send_response(REPLY_150)
             
-            if self.pasv_udp_socket:
-                self.data_handler.handle_upload(self.pasv_udp_socket, save_filepath, self.transfer_type)
-                self.pasv_udp_socket.close()
-                self.pasv_udp_socket = None
-
-            # còn thiếu nếu ở PORT mode
-            
-            self.send_response(REPLY_226)
+            try:
+                # 1. Lấy danh sách file/folder trong thư mục hiện tại
+                items = os.listdir(self.current_dir)
+                list_data = "\r\n".join(items) + "\r\n"
+                
+                # 2. Gửi danh sách qua kênh RDT UDP
+                if self.data_mode == "PASV" and self.pasv_udp_socket:
+                    self.pasv_udp_socket.settimeout(3.0)
+                    _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
+                    
+                    # Giả sử 
+                    self.data_handler.rdt_channel.send_data_rdt(
+                        self.pasv_udp_socket, client_udp_addr, list_data.encode('utf-8')
+                    )
+                    self.pasv_udp_socket.close()
+                    self.pasv_udp_socket = None
+                    
+                elif self.data_mode == "PORT" and self.client_udp_addr:
+                    temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    self.data_handler.rdt_channel.send_data_rdt(
+                        temp_socket, self.client_udp_addr, list_data.encode('utf-8')
+                    )
+                    temp_socket.close()
+                
+                self.send_response(REPLY_226)
+            except Exception as e:
+                self.send_response(REPLY_426)
+                print(f"[!] LIST Error: {e}")
             return
 
         elif cmd == "PWD": 

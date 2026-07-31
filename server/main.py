@@ -1,8 +1,14 @@
 import socket
 import threading
+import os
+import sys
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 from server.server_core import ClientHandler
 
-HOST = '127.0.0.1'
+HOST = '0.0.0.0'
 PORT = 2121
 
 def start_server():
