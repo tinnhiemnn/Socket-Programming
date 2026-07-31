@@ -1,10 +1,11 @@
 import sys
 import os
+import socket
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.protocol import *
 from server.server_data import ServerDataHandler
-SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage'))
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'server_root'))
 
 class ClientHandler:
     def __init__(self, client_socket, client_address):
@@ -179,6 +180,7 @@ class ClientHandler:
                     # Chế độ PORT: Tự mở socket mới, bind đại 1 port rồi lắng nghe
                     temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     temp_socket.bind(('0.0.0.0', 0))
+                    temp_socket.sendto(b'PING', self.client_udp_addr)
                     
                     self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type)
                     
@@ -251,7 +253,7 @@ class ClientHandler:
                 self.send_response(REPLY_550) 
 
         elif cmd == "CDUP":
-            new_path = os.path.abspath(os.path.join(self.current_dir, args))
+            new_path = os.path.abspath(os.path.join(self.current_dir, ".."))
 
             if not new_path.startswith(SERVER_ROOT):
                 self.send_response(REPLY_550)

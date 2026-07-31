@@ -1,0 +1,2 @@
+Hello FTP Server! This is ASCII text transfer mode testing.
+Line 2: 123456789.
