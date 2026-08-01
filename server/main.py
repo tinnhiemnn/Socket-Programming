@@ -17,13 +17,13 @@ is_server_running = True
 def listen_for_commands(server_socket):
     """Luồng phụ lắng nghe lệnh từ bàn phím để tắt server nhanh"""
     global is_server_running
-    print("[*] Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
+    log_event(None, "*", "Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
     while is_server_running:
         try:
             cmd = input().strip().lower()
 
             if cmd in ['q', 'quit', 'exit']:
-                print("\n[*] Shutting down server...")
+                log_event(None, "*", "Shutting down server...")
                 is_server_running = False
                 try:
                     server_socket.close()
@@ -54,7 +54,7 @@ def start_server():
             except OSError:
                 break
 
-            print(f"[*] New client connected: {client_addr}")
+            log_event(None, "*", f"New client connected: {client_addr}")
 
             handler = ClientHandler(client_sock, client_addr)
 
@@ -65,7 +65,7 @@ def start_server():
             client_thread.start()
 
     except KeyboardInterrupt:
-        print("\n[*] Server interrupted by user.")
+        log_event(None, "-", "Server interrupted by user.")
 
     finally:
         is_server_running = False
@@ -76,7 +76,7 @@ def start_server():
             except OSError:
                 pass
 
-        print("[*] Server stopped.")
+        log_event(None, "-", "Server stopped.")
 
 if __name__ == "__main__":
     start_server()
