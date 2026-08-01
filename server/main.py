@@ -12,6 +12,28 @@ from server.server_data import log_event
 HOST = '0.0.0.0'
 PORT = 2121
 
+is_server_running = True
+server_socket = None
+
+def listen_for_commands():
+    """Luồng phụ lắng nghe lệnh từ bàn phím để tắt server nhanh"""
+    global is_server_running, server_socket
+    print("[*] Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
+    while is_server_running:
+        try:
+            cmd = input().strip().lower()
+            if cmd in ['q', 'quit', 'exit']:
+                print("\n[*] The server is being shut down as requested from the keyboard...")
+                is_server_running = False
+                if server_socket:
+                    try:
+                        server_socket.close()
+                    except:
+                        pass
+                break
+        except EOFError:
+            break
+
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

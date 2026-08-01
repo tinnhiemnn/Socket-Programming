@@ -184,6 +184,7 @@ class ClientHandler:
                     # Chế độ PORT: Tự mở socket mới, bind đại 1 port rồi lắng nghe
                     temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     temp_socket.bind(('0.0.0.0', 0))
+
                     temp_socket.sendto(b'PING', self.client_udp_addr)
                     
                     self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type)
@@ -201,7 +202,7 @@ class ClientHandler:
                 log_event(self.client_address, "!", f"STOR Error: {e}")
                 self.send_response(REPLY_426)
 
-        elif cmd == "LIST":
+        elif cmd == "NLST":
             self.send_response(REPLY_150)
             
             try:
@@ -222,9 +223,7 @@ class ClientHandler:
                     
                 elif self.data_mode == "PORT" and self.client_udp_addr:
                     temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    self.data_handler.rdt_channel.send_data_rdt(
-                        temp_socket, self.client_udp_addr, list_data.encode('utf-8')
-                    )
+                    self.data_handler.rdt_channel.send_data_rdt(temp_socket, self.client_udp_addr, list_data.encode('utf-8'))
                     temp_socket.close()
                 
                 self.send_response(REPLY_226)
@@ -232,6 +231,36 @@ class ClientHandler:
                 self.send_response(REPLY_426)
                 log_event(self.client_address, "!", f"LIST Error: {e}")
             return
+
+        elif cmd == "LIST":
+            self.send_response(REPLY_150)
+            try: 
+                detail_lines = []
+                for name in os.listdir(self.current_dir):
+                    full_p = os.path.join(self.current_dir, name)
+                    is_dir = os.path.isdir(full_p)
+                    size = os.path.getsize(full_p) if not is_dir else 0
+                    mode_str = "drwxr-xr-x" if is_dir else "-rw-r--r--"
+                    detail_lines.append(f"{mode_str} 1 owner group {size:>8} {name}")
+
+                list_data = "\r\n".join(detail_lines) + "\r\n"
+
+                if self.data_mode == "PASV" and self.pasv_udp_socket:
+                    self.pasv_udp_socket.settimeout(3.0)
+                    _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
+                    self.data_handler.rdt_channel.send_data_rdt(self.pasv_udp_socket, client_udp_addr, list_data.encode('utf-8'))
+                    self.pasv_udp_socket.close()
+                    self.pasv_udp_socket = None
+                    
+                elif self.data_mode == "PORT" and self.client_udp_addr:
+                    temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    self.data_handler.rdt_channel.send_data_rdt(temp_socket, self.client_udp_addr, list_data.encode('utf-8'))
+                    temp_socket.close()
+                
+                self.send_response(REPLY_226)
+            except Exception as e:
+                self.send_response(REPLY_426)
+                print(f"[!] LIST Error: {e}")
 
         elif cmd == "PWD": 
             virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")
