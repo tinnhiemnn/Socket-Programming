@@ -4,7 +4,7 @@ import socket
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.protocol import *
-from server.server_data import ServerDataHandler
+from server.server_data import ServerDataHandler, log_event
 SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'server_root'))
 
 class ClientHandler:
@@ -22,14 +22,16 @@ class ClientHandler:
         self.pasv_udp_socket = None
         self.client_udp_addr = None
 
-    def send_response(self, respone_str): 
+    def send_response(self, response_str): 
         """Send an FTP response code to the client."""
         try: 
-            self.client_socket.sendall(respone_str.encode('utf-8'))
+            self.client_socket.sendall(response_str.encode('utf-8'))
+            log_event(self.client_address, "*", response_str.strip())
         except Exception as e:
-            print(f"[!] Error sending data to {self.client_address}: {e}")
+            log_event(self.client_address, "!", f"Failed to send response: {e}")
 
     def run(self):
+        log_event(self.client_address, "+", "Client connected successfully.")
         self.send_response(REPLY_220)
 
         while self.is_running:
@@ -43,15 +45,15 @@ class ClientHandler:
                 cmd = parts[0].upper()
                 args = parts[1] if len(parts) > 1 else ""
 
-                print(f"[{self.client_address}] Recieve: {cmd} {args}")
+                log_event(self.client_address, ">", f"{cmd} {args}".strip())
                 self.process_command(cmd, args)
 
             except Exception as e:
-                print(f"[!] Connection lost with {self.client_address}: {e}")
+                log_event(self.client_address, "-", f"Connection lost: {e}")
                 break
 
         self.client_socket.close()
-        print(f"[-] Connection closed with {self.client_address}")
+        log_event(self.client_address, "-", "Connection closed.")
 
     def process_command(self, cmd, args):
         """Validate and process FTP commands."""
@@ -105,7 +107,8 @@ class ClientHandler:
                 ip_parts = server_ip.replace('.', ',')
                 p1 = assigned_port // 256
                 p2 = assigned_port % 256
-                
+
+                log_event(self.client_address, "~", f"Passive UDP Socket bound on port {assigned_port}")
                 # Gửi chuỗi 227 chứa IP và Port về cho Client
                 self.send_response(REPLY_227.format(ip_parts, p1, p2))
             except Exception as e:
@@ -120,6 +123,7 @@ class ClientHandler:
                 
                 # Lưu lại IP và Port của Client để dùng cho lệnh RETR/STOR
                 self.client_udp_addr = (ip, port)
+                log_event(self.client_address, "~", f"Active mode target configured -> {self.client_udp_addr[0]}:{self.client_udp_addr[1]}")
                 self.send_response(REPLY_200)
             except:
                 self.send_response(REPLY_501)
@@ -156,10 +160,10 @@ class ClientHandler:
                     self.send_response(REPLY_425) 
 
             except socket.timeout:
-                print(f"[!] RETR Timeout waiting for client.")
+                log_event(self.client_address, "!", f"RETR Timeout waiting for client.")
                 self.send_response(REPLY_426)
             except Exception as e:
-                print(f"[!] RETR Error: {e}")
+                log_event(self.client_address, "!", f"RETR Error: {e}")
                 self.send_response(REPLY_426)
 
         elif cmd == "STOR": 
@@ -198,10 +202,10 @@ class ClientHandler:
                     self.send_response(REPLY_425) 
                     
             except socket.timeout:
-                print(f"[!] STOR Timeout waiting for client data.")
+                log_event(self.client_address, "!", f"STOR Timeout waiting for client data.")
                 self.send_response(REPLY_426) 
             except Exception as e:
-                print(f"[!] STOR Error: {e}")
+                log_event(self.client_address, "!", f"STOR Error: {e}")
                 self.send_response(REPLY_426)
 
         elif cmd == "NLST":
@@ -217,7 +221,6 @@ class ClientHandler:
                     self.pasv_udp_socket.settimeout(3.0)
                     _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
                     
-                    # Giả sử 
                     self.data_handler.rdt_channel.send_data_rdt(
                         self.pasv_udp_socket, client_udp_addr, list_data.encode('utf-8')
                     )
@@ -232,7 +235,7 @@ class ClientHandler:
                 self.send_response(REPLY_226)
             except Exception as e:
                 self.send_response(REPLY_426)
-                print(f"[!] LIST Error: {e}")
+                log_event(self.client_address, "!", f"LIST Error: {e}")
             return
 
         elif cmd == "LIST":
@@ -263,7 +266,7 @@ class ClientHandler:
                 self.send_response(REPLY_226)
             except Exception as e:
                 self.send_response(REPLY_426)
-                print(f"[!] LIST Error: {e}")
+                log_event(self.client_address, "!", f"LIST Error: {e}")
 
         elif cmd == "PWD": 
             virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")

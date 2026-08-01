@@ -7,6 +7,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 from server.server_core import ClientHandler
+from server.server_data import log_event
 
 HOST = '0.0.0.0'
 PORT = 2121
@@ -41,7 +42,7 @@ def start_server():
 
     server_socket.bind((HOST,PORT))
     server_socket.listen(5)
-    print(f"[*] FTP server is listening on TCP {HOST}:{PORT}...")
+    log_event(None, "+", f"FTP Server initialized successfully. Listening on TCP {HOST}:{PORT}...")
 
     command_thread = threading.Thread(target=listen_for_commands, args=(server_socket,), daemon=True)
     command_thread.start()
