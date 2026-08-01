@@ -7,6 +7,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from client.client_data import ClientDataHandler
+from client.cli_formatter import print_status
 
 class Client:
     def __init__(self, server_ip, server_port):
@@ -22,12 +23,12 @@ class Client:
         try:
             self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)            
             self.control_socket.connect((self.server_ip, self.server_port))
-            print(f"[*] Connected to FTP Server {self.server_ip}:{self.server_port}")
+            print_status(f"Connected to FTP Server {self.server_ip}:{self.server_port}", "INFO")
             
             response = self.control_socket.recv(1024).decode('utf-8')
-            print(f"Server: {response.strip()}")
+            print_status(response.strip(), "NET")
         except Exception as e:
-            print(f"[!] Cannot connect to Server: {e}")
+            print_status(f"Cannot connect to Server: {e}", "ERROR")
             sys.exit(1)
     
     def send_command(self, cmd_string):
@@ -39,7 +40,7 @@ class Client:
             response = self.control_socket.recv(1024).decode('utf-8')
             return response
         except Exception as e:
-            return f"[!] Error control channel: {e}"
+            return f"Error control channel: {e}"
 
     def set_type(self, type_str):
         res = self.send_command(f"TYPE {type_str}")
@@ -125,7 +126,7 @@ class Client:
         except Exception as e:
             if self.data_mode == 'PASV' and udp_sock:
                 udp_sock.close()
-            return f"[!] Download failed: {e}"
+            return f"Download failed: {e}"
         
     def upload_file(self, local_filepath, remote_filename): 
         udp_sock = None
@@ -162,4 +163,47 @@ class Client:
         except Exception as e:
             if self.data_mode == 'PASV' and udp_sock:
                 udp_sock.close()
-            return f"[!] Upload failed: {e}"
+            return f"Upload failed: {e}"
+
+    def list_directory(self, cmd_string):
+        udp_sock = None
+        target_addr = None
+
+        try:
+            if self.data_mode == 'PASV':
+                target_addr = self.enable_passive_mode()
+                udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            else: 
+                if not self.active_udp_socket:
+                    self.enable_active_mode()
+                udp_sock = self.active_udp_socket
+
+            res_150 = self.send_command(cmd_string)
+            if "150" not in res_150:
+                if self.data_mode == 'PASV' and udp_sock:
+                    udp_sock.close()
+                return res_150
+
+            if self.data_mode == 'PASV':
+                udp_sock.sendto(b'PING', target_addr)
+                raw_bytes = self.client_data.rdt_channel.receive_data_rdt(udp_sock)
+                udp_sock.close()
+            else:
+                raw_bytes = self.client_data.rdt_channel.receive_data_rdt(udp_sock)
+                udp_sock.close()
+                self.active_udp_socket = None  
+
+            res_226 = self.control_socket.recv(1024).decode('utf-8')
+            
+            dir_text = raw_bytes.decode('utf-8', errors='replace')
+            print("\n--- Directory Listing ---")
+            print(dir_text if dir_text.strip() else "(Directory is empty)")
+            print("-------------------------\n")
+
+            return res_226
+
+        except Exception as e:
+            if self.data_mode == 'PASV' and udp_sock:
+                udp_sock.close()
+            return f"LIST failed: {e}"
+    
