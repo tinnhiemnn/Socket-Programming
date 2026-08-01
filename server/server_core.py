@@ -143,7 +143,7 @@ class ClientHandler:
                     self.pasv_udp_socket.settimeout(3.0)
                     _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
                     
-                    self.data_handler.handle_download(self.pasv_udp_socket, client_udp_addr, filepath, self.transfer_type)
+                    self.data_handler.handle_download(self.pasv_udp_socket, client_udp_addr, filepath, self.transfer_type, self.client_address)
                     
                     self.pasv_udp_socket.close()
                     self.pasv_udp_socket = None
@@ -151,7 +151,7 @@ class ClientHandler:
 
                 elif self.data_mode == "PORT" and getattr(self, 'client_udp_addr', None):
                     temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    self.data_handler.handle_download(temp_socket, self.client_udp_addr, filepath, self.transfer_type)
+                    self.data_handler.handle_download(temp_socket, self.client_udp_addr, filepath, self.transfer_type, self.client_address)
                     
                     temp_socket.close()
                     self.send_response(REPLY_226) 
@@ -180,7 +180,7 @@ class ClientHandler:
                 if self.data_mode == "PASV" and self.pasv_udp_socket:
                     self.pasv_udp_socket.settimeout(5.0) 
                     
-                    self.data_handler.handle_upload(self.pasv_udp_socket, save_filepath, self.transfer_type)
+                    self.data_handler.handle_upload(self.pasv_udp_socket, save_filepath, self.transfer_type, self.client_address)
                     
                     self.pasv_udp_socket.close()
                     self.pasv_udp_socket = None
@@ -193,7 +193,7 @@ class ClientHandler:
 
                     temp_socket.sendto(b'PING', self.client_udp_addr)
                     
-                    self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type)
+                    self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type, self.client_address)
                     
                     temp_socket.close()
                     self.send_response(REPLY_226) 

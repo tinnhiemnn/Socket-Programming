@@ -201,14 +201,14 @@ class Client:
             if cmd_string == "LIST":
                 lines = [line.strip() for line in dir_text.splitlines() if line.strip()]
                 if lines:
-                    header = f"{'PERMISSIONS':<12} {'LINKS':<6} {'OWNER':<8} {'GROUP':<8} {'SIZE (Bytes)':>12}  {'NAME'}"
+                    header = f"{'PERMISSIONS':<12} {'LINKS':<6} {'OWNER':<8} {'GROUP':<8} {'SIZE (Bytes)':<12}  {'NAME'}"
                     print(header)
                     print("-" * len(header))
                     
                     for line in lines:
                         parts = line.split(maxsplit=5) 
                         perms, links, owner, group, size, name = parts
-                        print(f"{perms:<12} {links:<6} {owner:<8} {group:<8} {int(size):>12}  {name}")
+                        print(f"{perms:<12} {links:<6} {owner:<8} {group:<8} {int(size):<12}  {name}")
                 else:
                     print("(Directory is empty)")
                 print("-" * 57 + "\n")  

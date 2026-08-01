@@ -2,6 +2,7 @@ import struct
 
 FLAG_DATA = 0x0001  # Gói tin chứa dữ liệu
 FLAG_ACK  = 0x0002  # Gói tin phản hồi xác nhận
+FLAG_FIN  = 0x0004  # Gói tin báo kết thúc truyền dữ liệu
 
 class RDTPacket:
     def __init__(self, seq_num, flags, data=b''):

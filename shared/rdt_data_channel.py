@@ -1,7 +1,6 @@
 import os
 import socket
-import time
-from shared.rdt_packet import RDTPacket, FLAG_DATA, FLAG_ACK
+from shared.rdt_packet import RDTPacket, FLAG_DATA, FLAG_ACK, FLAG_FIN
 
 class RDTDataChannel:
     def __init__(self, timeout=1.0, max_retries=5):
@@ -55,14 +54,15 @@ class RDTDataChannel:
 
             if not ack_received:
                 raise Exception(f"Disconnected: Loss of transmission of packet Seq={current_seq} after {self.max_retries} attempts.")
-        
+        fin_packet = RDTPacket(seq_num=current_seq, flags=FLAG_FIN, data=b'')
+        udp_socket.sendto(fin_packet.to_bytes(), target_addr)
+
 
 #   Hàm nhận các khối dữ liệu UDP và tự động phản hồi ACK bằng Stop-and-Wait
     def receive_data_rdt(self, udp_socket: socket.socket, expected_total_bytes: int = None, progress_callback = None) -> bytes:
         received_data = bytearray()
         expected_seq = 0
         udp_socket.settimeout(5.0) 
-        start_time = time.time()
 
         while True:
             try:
@@ -99,6 +99,11 @@ class RDTDataChannel:
                         # Không nối dữ liệu nữa, nhưng BẮT BUỘC gửi lại ACK tương ứng với gói vừa nhận
                         ack_pkt = RDTPacket(seq_num=packet.seq_num, flags=FLAG_ACK)
                         udp_socket.sendto(ack_pkt.to_bytes(), sender_addr)
+
+                elif packet.flags & FLAG_FIN:
+                    ack_pkt = RDTPacket(seq_num=packet.seq_num, flags=FLAG_ACK)
+                    udp_socket.sendto(ack_pkt.to_bytes(), sender_addr)
+                    break  
 
             except socket.timeout:
                 # Nếu một khoảng thời gian không thấy gói tin mới -> Giả định đã truyền xong

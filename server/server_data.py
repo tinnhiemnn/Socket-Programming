@@ -12,15 +12,16 @@ class ServerDataHandler:
     def __init__(self):
         self.rdt_channel = RDTDataChannel()
 
-    def handle_download(self, udp_socket: socket.socket, client_udp_addr: tuple, filepath: str, transfer_type: str):
+    def handle_download(self, udp_socket: socket.socket, client_udp_addr: tuple, filepath: str, transfer_type: str, client_control_addr):
         file_bytes = self.rdt_channel.read_file_payload(filepath, transfer_type)
         def server_download_progress(transferred, total, addr, seq):
-            log_event(addr, "~", f"Sent Packet Seq={seq} ({transferred}/{total} Bytes)")
+            log_event(client_control_addr, "~", f"Sent Packet Seq={seq} ({transferred}/{total} Bytes)")
         self.rdt_channel.send_data_rdt(udp_socket, client_udp_addr, file_bytes, progress_callback=server_download_progress)
-        log_event(client_udp_addr, "~", "All data has been transferred securely!")
+        log_event(client_control_addr, "~", "All data has been transferred securely!")
 
-    def handle_upload(self, udp_socket: socket.socket, save_filepath: str, transfer_type: str):
+    def handle_upload(self, udp_socket: socket.socket, save_filepath: str, transfer_type: str, client_control_addr):
         def server_upload_progress(received_bytes, total_bytes, addr, seq):
-            log_event(addr, "~", f"Received Seq={seq} -> Total: {received_bytes} Bytes")
+            log_event(client_control_addr, "~", f"Received Seq={seq} -> Total: {received_bytes} Bytes")
         raw_bytes = self.rdt_channel.receive_data_rdt(udp_socket, progress_callback=server_upload_progress)
+        log_event(client_control_addr, "~", "Data transmission has ended. Reception complete!")
         self.rdt_channel.write_file_payload(save_filepath, raw_bytes, transfer_type)

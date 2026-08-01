@@ -23,4 +23,5 @@ class ClientDataHandler:
             print_progress_bar(received_bytes, total_bytes, speed_bps=1024*1024)
 
         raw_bytes = self.rdt_channel.receive_data_rdt(udp_socket, progress_callback=client_download_progress)
+        print_status("Data transmission has ended. Reception complete!", "NET")
         self.rdt_channel.write_file_payload(save_filepath, raw_bytes, transfer_type)
