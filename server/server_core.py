@@ -56,12 +56,18 @@ class ClientHandler:
     def process_command(self, cmd, args):
         """Validate and process FTP commands."""
         if cmd == "USER":
-            self.username = args
-            self.send_response(REPLY_331)
+            self.expected_user = "admin"
+            self.expected_pass = "123456"
+
+            if args == self.expected_user:
+                self.username = args
+                self.send_response(REPLY_331) 
+            else:
+                self.send_response(REPLY_530) 
             return
 
         elif cmd == "PASS":
-            if self.username:
+            if self.username and args == self.expected_pass:
                 self.is_authenticated = True
                 self.send_response(REPLY_230)
             else:
