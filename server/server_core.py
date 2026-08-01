@@ -181,8 +181,7 @@ class ClientHandler:
                     temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     temp_socket.bind(('0.0.0.0', 0))
 
-                    temp_socket.settimeout(5.0)
-                    temp_socket.recvfrom(1024)
+                    temp_socket.sendto(b'PING', self.client_udp_addr)
                     
                     self.data_handler.handle_upload(temp_socket, save_filepath, self.transfer_type)
                     
