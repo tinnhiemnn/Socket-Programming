@@ -6,14 +6,14 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from client.client_data import RDTDataChannel
+from client.client_data import ClientDataHandler
 
 class Client:
     def __init__(self, server_ip, server_port):
         self.server_ip = server_ip
         self.server_port = server_port
         self.control_socket = None
-        self.rdt_data_channel = RDTDataChannel()
+        self.client_data = ClientDataHandler()
         self.transfer_type = 'I'
         self.data_mode = 'PASV'
         self.active_udp_socket = None
@@ -112,13 +112,13 @@ class Client:
 
             if self.data_mode == 'PASV':
                 udp_sock.sendto(b'PING', target_addr)
-                raw_bytes = self.rdt_channel.receive_data_rdt(udp_sock)
+                self.client_data.handle_download(udp_sock, save_local_path, self.transfer_type)
                 udp_sock.close()
             else:
-                raw_bytes = self.rdt_channel.receive_data_rdt(udp_sock)
+                self.client_data.handle_download(udp_sock, save_local_path, self.transfer_type)
+                udp_sock.close()
                 self.active_udp_socket = None 
 
-            self.rdt_channel.write_file_payload(save_local_path, raw_bytes, self.transfer_type)
             res_226 = self.control_socket.recv(1024).decode('utf-8')
             return res_226
 
@@ -132,8 +132,6 @@ class Client:
         target_addr = None
 
         try:
-            payload_bytes = self.rdt_channel.read_file_payload(local_filepath, self.transfer_type)
-
             if self.data_mode == 'PASV':
                 target_addr = self.enable_passive_mode()
                 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -149,12 +147,12 @@ class Client:
                 return res_150
 
             if self.data_mode == 'PASV':
-                self.rdt_channel.send_data_rdt(udp_sock, target_addr, payload_bytes)
+                self.client_data.handle_upload(udp_sock, target_addr, local_filepath, self.transfer_type)
                 udp_sock.close()
             else:
                 udp_sock.settimeout(3.0)
                 _, server_udp_addr = udp_sock.recvfrom(1024)
-                self.rdt_channel.send_data_rdt(udp_sock, server_udp_addr, payload_bytes)
+                self.client_data.handle_upload(udp_sock, server_udp_addr, local_filepath, self.transfer_type)
                 udp_sock.close()
                 self.active_udp_socket = None 
 

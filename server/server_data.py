@@ -2,7 +2,7 @@ import socket
 import sys
 import os
 
-from client.client_data import RDTDataChannel
+from shared.rdt_data_channel import RDTDataChannel
 
 class ServerDataHandler:
     def __init__(self):

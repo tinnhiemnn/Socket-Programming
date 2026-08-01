@@ -5,7 +5,7 @@ import socket
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.protocol import *
 from server.server_data import ServerDataHandler
-SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage'))
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'server_root'))
 
 class ClientHandler:
     def __init__(self, client_socket, client_address):

@@ -1,0 +1,2 @@
+Server File Data - Testing RETR in ASCII Mode.
+End of file.
