@@ -260,7 +260,7 @@ class ClientHandler:
                 self.send_response(REPLY_226)
             except Exception as e:
                 self.send_response(REPLY_426)
-                print(f"[!] LIST Error: {e}")
+                log_event(self.client_address, "!", f"LIST Error: {e}")
 
         elif cmd == "PWD": 
             virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")

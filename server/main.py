@@ -18,12 +18,12 @@ server_socket = None
 def listen_for_commands():
     """Luồng phụ lắng nghe lệnh từ bàn phím để tắt server nhanh"""
     global is_server_running, server_socket
-    print("[*] Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
+    log_event(None, "*", "Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
     while is_server_running:
         try:
             cmd = input().strip().lower()
             if cmd in ['q', 'quit', 'exit']:
-                print("\n[*] The server is being shut down as requested from the keyboard...")
+                log_event(None, "*", "The server is being shut down as requested from the keyboard...")
                 is_server_running = False
                 if server_socket:
                     try:
