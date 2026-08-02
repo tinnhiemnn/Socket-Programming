@@ -8,7 +8,7 @@ class RDTDataChannel:
         self.max_retries = max_retries
 
 #   Hàm chia nhỏ dữ liệu và gửi đi bằng giải thuật Stop-and-Wait RDT
-    def send_data_rdt(self, udp_socket: socket.socket, target_addr: tuple, data_bytes: bytes, progress_callback=None):
+    def send_data_rdt(self, udp_socket: socket.socket, target_addr: tuple, data_bytes: bytes, progress_callback=None, error_callback=None):
         CHUNK_SIZE = 1024  # Cắt dữ liệu thành từng khối 1KB
         chunks = [data_bytes[i:i+CHUNK_SIZE] for i in range(0, len(data_bytes), CHUNK_SIZE)]
         total_bytes = len(data_bytes)
@@ -28,7 +28,6 @@ class RDTDataChannel:
                 try:
                     # 1. Gửi gói tin qua UDP Socket
                     udp_socket.sendto(packet_bytes, target_addr)
-                    #print(f"-> [UDP Sender] Packet Seq={current_seq}, Len={len(chunk)} has been sent.")
 
                     # 2. Đợi nhận gói ACK từ phía bên kia
                     resp_bytes, addr = udp_socket.recvfrom(2048)
@@ -36,13 +35,12 @@ class RDTDataChannel:
 
                     # 3. Kiểm tra xem có phải gói ACK hợp lệ không
                     if (ack_packet is not None and (ack_packet.flags & FLAG_ACK) and ack_packet.seq_num == current_seq):
-                        #print(f"<- [UDP Sender] Received successfully ACK={current_seq}")
                         ack_received = True
                         current_seq += 1
                         transferred_bytes += len(chunk)
 
                         if progress_callback:
-                            progress_callback(transferred_bytes, total_bytes, target_addr, current_seq)
+                            progress_callback(transferred_bytes, total_bytes, current_seq)
                     else:
                         #print(f"[!] [UDP Sender] Invalid ACK, resending...")
                         retries += 1
@@ -50,7 +48,7 @@ class RDTDataChannel:
                 except socket.timeout:
                     # Xảy ra Timeout -> Báo lỗi và lặp lại vòng while để gửi lại
                     retries += 1
-                    #print(f"[!] [UDP Sender] Timeout packet Seq={current_seq}! Retry ({retries}/{self.max_retries})...")
+                    error_callback(f"Timeout packet Seq={current_seq}! Retry ({retries}/{self.max_retries})...")
 
             if not ack_received:
                 raise Exception(f"Disconnected: Loss of transmission of packet Seq={current_seq} after {self.max_retries} attempts.")
@@ -59,7 +57,7 @@ class RDTDataChannel:
 
 
 #   Hàm nhận các khối dữ liệu UDP và tự động phản hồi ACK bằng Stop-and-Wait
-    def receive_data_rdt(self, udp_socket: socket.socket, expected_total_bytes: int = None, progress_callback = None) -> bytes:
+    def receive_data_rdt(self, udp_socket: socket.socket, expected_total_bytes: int = None, progress_callback = None, error_callback = None):
         received_data = bytearray()
         expected_seq = 0
         udp_socket.settimeout(5.0) 
@@ -71,7 +69,7 @@ class RDTDataChannel:
 
                 # Trường hợp 1: Gói tin bị hỏng Checksum -> Bỏ qua, không gửi ACK[cite: 1]
                 if packet is None:
-                    #print("[!] [UDP Receiver] Received packet has checksum error -> Ignore.")
+                    error_callback("Checksum failed or invalid packet header format -> Ignore.")
                     continue
 
                 # Chỉ xử lý gói tin có cờ DATA
@@ -85,7 +83,7 @@ class RDTDataChannel:
                         udp_socket.sendto(ack_pkt.to_bytes(), sender_addr)                        
 
                         if progress_callback:
-                            progress_callback(len(received_data), expected_total_bytes, sender_addr, expected_seq)
+                            progress_callback(len(received_data), expected_total_bytes, expected_seq)
 
                         expected_seq += 1
 
@@ -95,8 +93,7 @@ class RDTDataChannel:
 
                     # Trường hợp 3: Nhận GÓI TRÙNG (Duplicate Seq - do ACK trước bị mất)
                     else:
-                        #print(f"[*] [UDP Receiver] Received duplicate packet Seq={packet.seq_num} -> Resend ACK={packet.seq_num}")
-                        # Không nối dữ liệu nữa, nhưng BẮT BUỘC gửi lại ACK tương ứng với gói vừa nhận
+                        error_callback(f"Received duplicate packet Seq={packet.seq_num} (Expected Seq={expected_seq}) -> Resending ACK.")
                         ack_pkt = RDTPacket(seq_num=packet.seq_num, flags=FLAG_ACK)
                         udp_socket.sendto(ack_pkt.to_bytes(), sender_addr)
 
@@ -107,7 +104,6 @@ class RDTDataChannel:
 
             except socket.timeout:
                 # Nếu một khoảng thời gian không thấy gói tin mới -> Giả định đã truyền xong
-                #print("[*] [UDP Receiver] Data transmission has ended (Timeout). Reception complete!")
                 break
 
         return bytes(received_data)

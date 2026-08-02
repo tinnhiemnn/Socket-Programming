@@ -9,7 +9,7 @@ COLOR_CYAN    = "\033[36m"
 COLOR_YELLOW  = "\033[33m"
 COLOR_RED     = "\033[31m"
 COLOR_BLUE    = "\033[34m"
-COLOR_MAGENTA = "\033[35m"
+COLOR_PINK    = "\033[95m"
 
 def print_header():
     banner = f"""
@@ -27,7 +27,7 @@ def print_status(message: str, level: str = "INFO"):
     elif level == "ERROR":
         prefix = f"{COLOR_RED}[✗ ERROR]{COLOR_RESET}"
     elif level == "NET":
-        prefix = f"{COLOR_MAGENTA}[⇄ NETWORK]{COLOR_RESET}"
+        prefix = f"{COLOR_PINK}[⇄ NETWORK]{COLOR_RESET}"
     else:
         prefix = f"{COLOR_CYAN}[i INFO]{COLOR_RESET}"
     
