@@ -165,7 +165,7 @@ class Client:
                 udp_sock.close()
             return f"Upload failed: {e}"
 
-    def list_directory(self, cmd_string):
+    def list_directory(self, cmd_string, local_path = None):
         udp_sock = None
         target_addr = None
 
@@ -178,7 +178,7 @@ class Client:
                     self.enable_active_mode()
                 udp_sock = self.active_udp_socket
 
-            res_150 = self.send_command(cmd_string)
+            res_150 = self.send_command(f"{cmd_string} {local_path or ''}")
             if "150" not in res_150:
                 if self.data_mode == 'PASV' and udp_sock:
                     udp_sock.close()

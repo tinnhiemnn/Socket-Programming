@@ -16,7 +16,8 @@ def print_help():
     print("  TYPE <A|I>            : Change Transfer Mode (A: ASCII, I: Binary)")
     print("  RETR <remote> <local> : Download file from Server via UDP RDT")
     print("  STOR <local> <remote> : Upload file to Server via UDP RDT")
-    print("  LIST / NLST           : Get directory listing via UDP RDT")
+    print("  LIST [path]           : List detailed directory contents (default: current dir)")
+    print("  NLST [path]           : List directory file names only (default: current dir)")
     print("  PWD / CWD / CDUP      : Navigation commands")
     print("  MKD <dir> / RMD <dir> : Directory creation/deletion")
     print("  HELP                  : Display this help message")
@@ -99,8 +100,9 @@ def main():
                     print_status(f"Failed to enter Passive Mode. Server: {res.strip()}", "ERROR")
 
             elif cmd in ["LIST", "NLST"]:
-                print_status(f"Fetching directory listing ({cmd}) via UDP RDT...", "NET")
-                response = client.list_directory(cmd)
+                args = parts[1] if len(parts) > 1 else None
+                print_status(f"Fetching directory listing ({cmd}) {args or ''} via UDP RDT...", "NET")
+                response = client.list_directory(cmd, args)
                 print_status(response.strip(), "SUCCESS" if "226" in response else "ERROR")
 
             elif cmd == "HELP":
