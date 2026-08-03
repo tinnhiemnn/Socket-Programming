@@ -39,7 +39,6 @@ def print_progress_bar(transferred: int, total: int, speed_bps: float, bar_lengt
         speed_str = f"{format_bytes(speed_bps)}/s"
         sys.stdout.write(f"\r   Downloading: {trans_str} received | Speed: {speed_str}  ")
         sys.stdout.flush()
-        sys.stdout.write("\n")
         return
 
     percent = min(1.0, transferred / total)

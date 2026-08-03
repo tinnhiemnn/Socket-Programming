@@ -59,7 +59,7 @@ class Client:
             port = int(parts[4]) * 256 + int(parts[5])
             self.data_mode = 'PASV'
             return (ip, port)
-        raise Exception("Failed to enter Passive Mode.")
+        raise Exception(f"Failed to enter Passive Mode. Server: {res.strip()}")
 
     def get_local_ip(self):
         try:

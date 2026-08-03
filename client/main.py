@@ -19,6 +19,7 @@ def print_help():
     print("  LIST / NLST           : Get directory listing via UDP RDT")
     print("  PWD / CWD / CDUP      : Navigation commands")
     print("  MKD <dir> / RMD <dir> : Directory creation/deletion")
+    print("  HELP                  : Display this help message")
     print("  QUIT                  : Terminate session\n")
 
 def main():
@@ -92,12 +93,18 @@ def main():
 
             elif cmd == "PORT":
                 res = client.enable_active_mode()
-                print_status(f"Switched to ACTIVE Data Mode. Server: {res.strip()}", "SUCCESS")
+                if "200" in res:
+                    print_status(f"Switched to ACTIVE Data Mode. Server: {res.strip()}", "SUCCESS")
+                else:
+                    print_status(f"Failed to enter Passive Mode. Server: {res.strip()}", "ERROR")
 
             elif cmd in ["LIST", "NLST"]:
                 print_status(f"Fetching directory listing ({cmd}) via UDP RDT...", "NET")
                 response = client.list_directory(cmd)
                 print_status(response.strip(), "SUCCESS" if "226" in response else "ERROR")
+
+            elif cmd == "HELP":
+                print_help()
 
             else:
                 response = client.send_command(user_input)
