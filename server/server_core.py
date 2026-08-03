@@ -209,14 +209,23 @@ class ClientHandler:
                 self.send_response(REPLY_426)
 
         elif cmd == "NLST":
+            # 1. Xác định thư mục mục tiêu
+            target_dir = self.current_dir
+            if args:
+                target_dir = os.path.abspath(os.path.join(self.current_dir, args)) if not os.path.isabs(args) else args
+
+            if not os.path.exists(target_dir) or not os.path.isdir(target_dir):
+                self.send_response("550 Directory not found.")
+                return
+            
             self.send_response(REPLY_150)
             
             try:
-                # 1. Lấy danh sách file/folder trong thư mục hiện tại
-                items = os.listdir(self.current_dir)
-                list_data = "\r\n".join(items) + "\r\n"
+                # 2. Lấy danh sách file/folder trong target_dir
+                items = os.listdir(target_dir)
+                list_data = "\r\n".join(items) + "\r\n" if items else ""
                 
-                # 2. Gửi danh sách qua kênh RDT UDP
+                # 3. Gửi danh sách qua kênh RDT UDP
                 if self.data_mode == "PASV" and self.pasv_udp_socket:
                     self.pasv_udp_socket.settimeout(3.0)
                     _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
@@ -235,22 +244,34 @@ class ClientHandler:
                 self.send_response(REPLY_226)
             except Exception as e:
                 self.send_response(REPLY_426)
-                log_event(self.client_address, "!", f"LIST Error: {e}")
+                log_event(self.client_address, "!", f"NLST Error: {e}")
             return
 
         elif cmd == "LIST":
+            # 1. Xác định thư mục mục tiêu
+            target_dir = self.current_dir
+            if args:
+                target_dir = os.path.abspath(os.path.join(self.current_dir, args)) if not os.path.isabs(args) else args
+
+            if not os.path.exists(target_dir) or not os.path.isdir(target_dir):
+                self.send_response("550 Directory not found.")
+                return
+            
             self.send_response(REPLY_150)
+
             try: 
                 detail_lines = []
-                for name in os.listdir(self.current_dir):
-                    full_p = os.path.join(self.current_dir, name)
+                # 2. Duyệt qua target_dir
+                for name in os.listdir(target_dir):
+                    full_p = os.path.join(target_dir, name)
                     is_dir = os.path.isdir(full_p)
                     size = os.path.getsize(full_p) if not is_dir else 0
                     mode_str = "drwxr-xr-x" if is_dir else "-rw-r--r--"
                     detail_lines.append(f"{mode_str} 1 owner group {size:>8} {name}")
 
-                list_data = "\r\n".join(detail_lines) + "\r\n"
+                list_data = "\r\n".join(detail_lines) + "\r\n" if detail_lines else ""
 
+                # 3. Gửi danh sách qua kênh RDT UDP
                 if self.data_mode == "PASV" and self.pasv_udp_socket:
                     self.pasv_udp_socket.settimeout(3.0)
                     _, client_udp_addr = self.pasv_udp_socket.recvfrom(1024)
@@ -267,7 +288,8 @@ class ClientHandler:
             except Exception as e:
                 self.send_response(REPLY_426)
                 log_event(self.client_address, "!", f"LIST Error: {e}")
-
+            return
+        
         elif cmd == "PWD": 
             virtual_path = self.current_dir.replace(SERVER_ROOT, "").replace("\\", "/")
             if virtual_path == "":
