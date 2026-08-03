@@ -1,5 +1,6 @@
 import os
 import sys 
+import getpass
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
@@ -10,8 +11,6 @@ from client.cli_formatter import print_header, print_status, COLOR_CYAN, COLOR_R
 
 def print_help():
     print(f"\n{COLOR_BOLD}Available Commands:{COLOR_RESET}")
-    print("  USER <username>       : Authenticate username")
-    print("  PASS <password>       : Authenticate password")
     print("  PASV / PORT           : Switch Data Mode (Passive / Active)")
     print("  TYPE <A|I>            : Change Transfer Mode (A: ASCII, I: Binary)")
     print("  RETR <remote> <local> : Download file from Server via UDP RDT")
@@ -31,6 +30,28 @@ def main():
     client = Client(SERVER_IP, SERVER_PORT)
     client.connect_control_channel()
     print_help()
+
+    while True:
+        try:
+            username = input(f"{COLOR_CYAN}{COLOR_BOLD}Username:{COLOR_RESET} ").strip()
+            response = client.send_command(f"USER {username}")
+            if "530" in response:
+                print_status("Invalid username. Please try again.", "ERROR")
+            else:
+                print_status(response.strip(), "SUCCESS")
+                password = getpass.getpass(f"{COLOR_CYAN}{COLOR_BOLD}Password:{COLOR_RESET} ").strip()
+                response = client.send_command(f"PASS {password}")
+                if "530" in response:
+                    print_status("Incorrect password. Please re-enter your username and password.", "ERROR")
+                else:
+                    print_status(response.strip(), "SUCCESS")
+                    break
+        except KeyboardInterrupt:
+            print_status("Closing client application.", "WARNING")
+            return
+        except Exception as e:
+            print_status(f"Error: {e}", "ERROR")
+
     
     while True:
         try:
@@ -44,16 +65,12 @@ def main():
             cmd = parts[0].upper()
 
             if cmd in ["USER", "PASS"]:
-                response = client.send_command(user_input)
-                print_status(response.strip(), "NET")
+                print_status("Already logged in.", "WARNING")
 
             elif cmd == "TYPE":
-                if len(parts) > 1:
-                    type_mode = parts[1].upper()
-                    response = client.set_type(type_mode)
-                    print_status(response.strip(), "SUCCESS" if "200" in response else "ERROR")
-                else:
-                    print_status("Correct syntax: TYPE A or TYPE I", "WARNING")
+                type_mode = parts[1].upper() if len(parts) > 1 else None
+                response = client.set_type(type_mode)
+                print_status(response.strip(), "SUCCESS" if "200" in response else "ERROR")
 
             elif cmd == "RETR":
                 # Cú pháp CLI: RETR <file_tren_server> <file_luu_o_client>
@@ -105,12 +122,16 @@ def main():
                 response = client.list_directory(cmd, args)
                 print_status(response.strip(), "SUCCESS" if "226" in response else "ERROR")
 
+            elif cmd in ["CWD", "CDUP", "MKD", "RMD"]:
+                response = client.send_command(user_input)
+                print_status(response.strip(), "SUCCESS" if "250" in response else "ERROR")
+
             elif cmd == "HELP":
                 print_help()
 
             else:
                 response = client.send_command(user_input)
-                print_status(response.strip(), "NET")
+                print_status(response.strip(), "ERROR" if "500" in response else "NET")
             
         except KeyboardInterrupt:
             print_status("Closing client application.", "WARNING")

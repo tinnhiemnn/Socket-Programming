@@ -355,4 +355,4 @@ class ClientHandler:
                 self.send_response(REPLY_550)
 
         else: 
-            self.send_response(REPLY_502)
+            self.send_response(REPLY_500)

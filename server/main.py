@@ -14,26 +14,6 @@ PORT = 2121
 
 is_server_running = True
 
-def listen_for_commands(server_socket):
-    """Luồng phụ lắng nghe lệnh từ bàn phím để tắt server nhanh"""
-    global is_server_running
-    log_event(None, "*", "Shortcut: Type 'q' or 'quit' and press Enter to quickly shut down the server.")
-    while is_server_running:
-        try:
-            cmd = input().strip().lower()
-
-            if cmd in ['q', 'quit', 'exit']:
-                log_event(None, "*", "Shutting down server...")
-                is_server_running = False
-                try:
-                    server_socket.close()
-                except OSError:
-                    pass
-                break
-
-        except EOFError:
-            break
-
 def start_server():
     global is_server_running
 
@@ -42,15 +22,17 @@ def start_server():
 
     server_socket.bind((HOST,PORT))
     server_socket.listen(5)
+    server_socket.settimeout(1.0)
     log_event(None, "+", f"FTP Server initialized successfully. Listening on TCP {HOST}:{PORT}...")
-
-    command_thread = threading.Thread(target=listen_for_commands, args=(server_socket,), daemon=True)
-    command_thread.start()
+    log_event(None, "*", "Shortcut: Press Ctrl+C to quickly shut down the server.")
 
     try:
         while is_server_running:
             try:
                 client_sock, client_addr = server_socket.accept()
+                client_sock.settimeout(None)
+            except socket.timeout:
+                continue
             except OSError:
                 break
 
