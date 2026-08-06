@@ -1,11 +1,45 @@
 import sys
 import os
 import socket
+import threading
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.protocol import *
 from server.server_data import ServerDataHandler, log_event
+
 SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'server_root'))
+active_sessions = {}
+session_lock = threading.Lock()
+
+def add_session(client_addr, username="Anonymous"):
+    with session_lock:
+        active_sessions[client_addr] = {
+            "username": username,
+            "connected_at": time.strftime("%H:%M:%S"),
+            "status": "Authenticated" if username != "Anonymous" else "Connected"
+        }
+    print_active_sessions_table()
+
+def remove_session(client_addr):
+    with session_lock:
+        active_sessions.pop(client_addr, None)
+    print_active_sessions_table()
+
+def print_active_sessions_table():
+    with session_lock:
+        print("\n" + "=" * 73)
+        print(f"| {'CLIENT ADDRESS':<22} | {'USERNAME':<15} | {'TIME':<10} | {'STATUS':<13} |")
+        print("=" * 73)
+        
+        if not active_sessions:
+            print(f"| {'(No active sessions)':^69} |")
+        else:
+            for addr, info in active_sessions.items():
+                addr_str = f"{addr[0]}:{addr[1]}"
+                print(f"| {addr_str:<22} | {info['username']:<15} | {info['connected_at']:<10} | {info['status']:<13} |")
+        
+        print("=" * 73 + "\n")
 
 class ClientHandler:
     def __init__(self, client_socket, client_address):
@@ -31,6 +65,7 @@ class ClientHandler:
             log_event(self.client_address, "!", f"Failed to send response: {e}")
 
     def run(self):
+        add_session(self.client_address, username="Anonymous")
         log_event(self.client_address, "+", "Client connected successfully.")
         self.send_response(REPLY_220)
 
@@ -52,6 +87,7 @@ class ClientHandler:
                 log_event(self.client_address, "-", f"Connection lost: {e}")
                 break
 
+        remove_session(self.client_address)
         self.client_socket.close()
         log_event(self.client_address, "-", "Connection closed.")
 
@@ -72,6 +108,7 @@ class ClientHandler:
             if self.username and args == self.expected_pass:
                 self.is_authenticated = True
                 self.send_response(REPLY_230)
+                add_session(self.client_address, username=self.username)
             else:
                 self.send_response(REPLY_530)
             return
