@@ -17,6 +17,8 @@ class RDTDataChannel:
         current_seq = 0
         udp_socket.settimeout(self.timeout)  
 
+        count_resend = 0
+
         for chunk in chunks:
             packet = RDTPacket(seq_num=current_seq, flags=FLAG_DATA, data=chunk)
             packet_bytes = packet.to_bytes()
@@ -50,10 +52,14 @@ class RDTDataChannel:
                     retries += 1
                     error_callback(f"Timeout packet Seq={current_seq}! Retry ({retries}/{self.max_retries})...")
 
+            count_resend += retries
+
             if not ack_received:
                 raise Exception(f"Disconnected: Loss of transmission of packet Seq={current_seq} after {self.max_retries} attempts.")
         fin_packet = RDTPacket(seq_num=current_seq, flags=FLAG_FIN, data=b'')
         udp_socket.sendto(fin_packet.to_bytes(), target_addr)
+
+        error_callback(f"Number of resend packet: {count_resend}")
 
 
 #   Hàm nhận các khối dữ liệu UDP và tự động phản hồi ACK bằng Stop-and-Wait

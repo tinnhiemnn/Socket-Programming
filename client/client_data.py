@@ -15,7 +15,10 @@ class ClientDataHandler:
         def client_upload_progress(transferred, total, seq):
             print_progress_bar(transferred, total, speed_bps=1024*1024)
 
-        self.rdt_channel.send_data_rdt(udp_socket, client_udp_addr, file_bytes, progress_callback=client_upload_progress)
+        def print_error(msg):
+            print_status(msg, "NET")
+
+        self.rdt_channel.send_data_rdt(udp_socket, client_udp_addr, file_bytes, progress_callback=client_upload_progress, error_callback=print_error)
         print_status("All data has been transferred securely!", "NET")
 
     def handle_download(self, udp_socket: socket.socket, save_filepath: str, transfer_type: str):
